@@ -158,7 +158,16 @@ function computeModel() {
     }
     if (t0 && L.d > 500) avg = clamp((L.t - t0) / L.d);
   }
-  const pred = recent && avg ? 0.6 * recent + 0.4 * avg : recent || avg || TARGET;
+  // Allure sur les 2 derniers km (sent un ralentissement sans réagir à chaque ravito)
+  let last2k = null;
+  if (L && L.d > 2000) {
+    for (let k = fixes.length - 1; k >= 0; k--) if (fixes[k].d <= L.d - 2000) { last2k = clamp((L.t - fixes[k].t) / (L.d - fixes[k].d)); break; }
+  }
+  // Prévision des km restants : 60 % moyenne depuis le départ + 40 % des 2 derniers km.
+  // Avant le km 3, on glisse progressivement de l'allure objectif vers l'allure réelle.
+  let pred = TARGET;
+  const real = avg && last2k ? 0.6 * avg + 0.4 * last2k : avg || last2k || recent;
+  if (real) { const w = Math.min(1, L.d / 3000); pred = w * real + (1 - w) * TARGET; }
   const finished = !!L && L.d >= TOTAL - 80;
 
   // Temps de passage interpolés (km bouclés)
@@ -336,9 +345,9 @@ function render() {
   const sd = $("#sDelta");
   if (hasData && M.t0 && M.L.d > 300) {
     const delta = (M.L.t - M.t0) - M.L.d * TARGET; // > 0 : en retard
-    sd.textContent = `${delta > 0 ? "+" : "−"}${fmtDur(Math.abs(delta))}`;
+    sd.textContent = ` · ${delta > 0 ? "+" : "−"}${fmtDur(Math.abs(delta))} ${delta > 0 ? "de retard" : "d'avance"}`;
     sd.className = delta > 0 ? "behind" : "ahead";
-  } else { sd.textContent = "—"; sd.className = ""; }
+  } else { sd.textContent = ""; sd.className = ""; }
 
   renderNext(d);
 }
@@ -346,7 +355,11 @@ function render() {
 function renderNext(d) {
   const items = waypoints.filter((w) => w.d > d && (w.type !== "km" || w.km % 5 === 0 || w.d - d < 1100)).slice(0, 5);
   const ul = $("#nextList");
-  if (M && M.finished) { ul.innerHTML = `<li><span class="ico">🏅</span><span class="lbl">Course terminée !<small>Bravo ${esc(NAME)} 👏</small></span></li>`; return; }
+  if (M && M.finished) { $("#sNext").textContent = "🏅"; $("#sNextLbl").textContent = "Course terminée"; ul.innerHTML = `<li><span class="ico">🏅</span><span class="lbl">Course terminée !<small>Bravo ${esc(NAME)} 👏</small></span></li>`; return; }
+  // Carte « Prochain passage » (visible panneau replié)
+  const nx = items[0], ne = nx && etaAt(nx.d);
+  $("#sNext").textContent = ne && ne.t ? fmtClock(ne.t) : "—";
+  $("#sNextLbl").textContent = nx ? `${nx.name} · ${ne && ne.t ? fmtIn(ne.t - now()) : `${fmtKm(nx.d - d)} km`}` : "";
   ul.innerHTML = items.map((w) => {
     const e = etaAt(w.d), ico = w.ico || ({ km: "🔹", ravito: "💧", finish: "🏁", poi: "📍" })[w.type];
     const eta = e && e.t ? `${fmtClock(e.t)}<small>${fmtIn(e.t - now())}</small>` : `—<small>${fmtKm(w.d - d)} km</small>`;
@@ -494,7 +507,18 @@ async function main() {
 
   $("#btnFollow").onclick = () => { setFollow(!follow); render(); };
   $("#btnAll").onclick = () => { setFollow(false); map.fitBounds(L.latLngBounds(route.map((p) => [p.lat, p.lon])), { padding: [30, 30] }); };
-  $("#handle").onclick = () => $("#sheet").classList.toggle("collapsed");
+  // Panneau du bas : toucher la poignée, ou glisser vers le haut / le bas
+  const sheet = $("#sheet");
+  const setOpen = (open) => sheet.classList.toggle("collapsed", !open);
+  $("#handle").onclick = () => setOpen(sheet.classList.contains("collapsed"));
+  let y0 = null;
+  sheet.addEventListener("touchstart", (e) => { y0 = e.touches[0].clientY; }, { passive: true });
+  sheet.addEventListener("touchend", (e) => {
+    if (y0 === null) return; const dy = e.changedTouches[0].clientY - y0; y0 = null;
+    if (dy < -30 && sheet.classList.contains("collapsed")) setOpen(true);
+    else if (dy > 40 && !sheet.classList.contains("collapsed") && sheet.scrollTop <= 0) setOpen(false);
+  }, { passive: true });
+  sheet.addEventListener("touchmove", (e) => { if (sheet.classList.contains("collapsed")) e.preventDefault(); }, { passive: false });
   $("#nextList").onclick = (e) => {
     const li = e.target.closest("li[data-d]"); if (!li) return;
     const p = pointAt(+li.dataset.d); setFollow(false); map.setView([p.lat, p.lon], 16);

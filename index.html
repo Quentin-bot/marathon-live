@@ -27,19 +27,19 @@
   </div>
 
   <section class="sheet" id="sheet">
-    <button class="handle" id="handle" aria-label="Agrandir / réduire"><span></span></button>
+    <button class="handle" id="handle" aria-label="Agrandir / réduire"><span></span><em class="more-lbl">⌃ Plus de détails</em><em class="less-lbl">⌄ Réduire</em></button>
 
     <div class="progress">
       <div class="bar"><div class="fill" id="fill"></div><div class="runner" id="barRunner">🏃</div><div class="ghost" id="barGhost" title="Lièvre objectif">⏱️</div></div>
       <div class="progress-txt"><b id="kmDone">0,0</b> / <span id="kmTotal">42,2</span> km <span class="pct" id="pct"></span></div>
-      <div class="objective" id="objective"></div>
+      <div class="objective"><span id="objective"></span><span id="sDelta"></span></div>
     </div>
 
     <div class="stats">
+      <div class="stat"><label>Arrivée estimée</label><b id="sFinish">—</b><small id="sFinishChrono"></small></div>
+      <div class="stat"><label>Prochain passage</label><b id="sNext">—</b><small id="sNextLbl"></small></div>
       <div class="stat"><label>Temps de course</label><b id="sElapsed">—</b></div>
       <div class="stat"><label>Allure actuelle</label><b id="sPace">—</b></div>
-      <div class="stat"><label>Arrivée estimée</label><b id="sFinish">—</b><small id="sFinishChrono"></small></div>
-      <div class="stat"><label>Avance / retard</label><b id="sDelta">—</b></div>
     </div>
 
     <div class="more">
