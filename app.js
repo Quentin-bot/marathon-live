@@ -442,6 +442,11 @@ function startFirebase() {
     es.addEventListener("cancel", () => showError("Accès refusé par la base de données. Vérifie les règles Firebase (README)."));
   };
   connect();
+  // Vérifie l'accès : sans ça, un refus des règles Firebase passerait inaperçu
+  fetch(`${DB}/live/${encodeURIComponent(KEY)}/meta.json`).then((r) => {
+    if (r.status === 401 || r.status === 403) showError(`<h2>Accès refusé</h2><p>La base Firebase refuse la lecture. Vérifie que les règles de <code>database.rules.json</code> sont bien publiées (Firebase → Realtime Database → Règles → Publier).</p>`);
+    else if (!r.ok) toast(`⚠️ Base de données : erreur ${r.status}`);
+  }).catch(() => toast("⚠️ Impossible de joindre la base de données (réseau ?)"));
   document.addEventListener("visibilitychange", () => { if (!document.hidden && (!es || es.readyState === 2)) connect(); });
   sendCheer = async (n) => {
     await fetch(`${DB}/live/${encodeURIComponent(KEY)}/cheers.json`, { method: "POST", body: JSON.stringify({ n, t: Date.now() }) });
