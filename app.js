@@ -110,7 +110,7 @@ const slice = (d0, d1) => {
 // ─── Modèle : positions GPS → progression sur le parcours ─────────────────
 let rawPoints = [];      // [{t, lat, lon, acc}]
 let M = null;            // modèle calculé
-let cheers = [];         // [{n, t}]
+let cheers = [];         // [{id, n, m, t, d}] : prénom, message, heure, km où était le coureur
 
 function computeModel() {
   const pts = rawPoints.slice().sort((a, b) => a.t - b.t);
@@ -382,8 +382,15 @@ function onCheers(list) {
   const fresh = list.filter((c) => !seen.has(c.id));
   cheers = list;
   $("#cheerCount").textContent = cheers.length ? `(${cheers.length})` : "";
-  if (cheersReady) for (const c of fresh.slice(-3)) toast(`💪 ${c.n || "Quelqu'un"} envoie de la force !`);
+  if (cheersReady) for (const c of fresh.slice(-3)) toast(`💪 ${c.n || "Quelqu'un"}${c.m ? ` : ${c.m}` : " envoie de la force !"}`);
   cheersReady = true;
+  renderCheers();
+}
+function renderCheers() {
+  const el = $("#cheerList");
+  if (!cheers.length) { el.innerHTML = `<li class="muted">Aucun encouragement pour l'instant. Soyez le premier !</li>`; return; }
+  el.innerHTML = cheers.slice().reverse().map((c) =>
+    `<li><b>${esc(c.n || "Un supporter")}</b> <small>${c.t ? fmtClock(c.t) : ""}${isFinite(c.d) && c.d > 0 ? ` · km ${fmtKm(c.d)}` : ""}</small>${c.m ? `<div>« ${esc(c.m)} »</div>` : ""}</li>`).join("");
 }
 function toast(msg) {
   const d = document.createElement("div"); d.className = "toast"; d.textContent = msg;
@@ -397,18 +404,6 @@ function burst(emojis, n = 24) {
     document.body.appendChild(s); setTimeout(() => s.remove(), 5500);
   }
 }
-function askName() {
-  return new Promise((resolve) => {
-    let name = ""; try { name = localStorage.getItem("cheerName") || ""; } catch {}
-    if (name) return resolve(name);
-    const ov = $("#overlay"); ov.classList.remove("hidden");
-    ov.innerHTML = `<div class="box"><h2>💪 Ton prénom ?</h2><p>Pour que tout le monde sache qui encourage ${esc(NAME)}.</p>
-      <input id="nameIn" maxlength="20" placeholder="Prénom" autocomplete="given-name"><br><button id="nameOk">Envoyer</button></div>`;
-    const ok = () => { const v = $("#nameIn").value.trim().slice(0, 20) || "Un supporter"; try { localStorage.setItem("cheerName", v); } catch {} ov.classList.add("hidden"); resolve(v); };
-    $("#nameOk").onclick = ok; $("#nameIn").onkeydown = (e) => e.key === "Enter" && ok(); $("#nameIn").focus();
-  });
-}
-
 // ─── Sources de données ───────────────────────────────────────────────────
 const KEY = decodeURIComponent(location.hash.slice(1)).trim();
 const DB = (C.firebaseUrl || "").replace(/\/+$/, "");
@@ -430,7 +425,8 @@ function applyState(state) {
   targetReady = true;
   rawPoints = Object.values(state.points || {}).map(toPoint).filter(Boolean);
   computeModel(); renderSplits();
-  const cs = Object.entries(state.cheers || {}).map(([id, c]) => ({ id, n: c && c.n, t: c && c.t })).sort((a, b) => a.t - b.t);
+  const cs = Object.entries(state.cheers || {}).filter(([, c]) => c && typeof c === "object")
+    .map(([id, c]) => ({ id, n: String(c.n || "").slice(0, 20), m: String(c.m || "").slice(0, 80), t: +c.t, d: +c.d })).sort((a, b) => a.t - b.t);
   onCheers(cs);
   if (M.finished && !finishedShown) { finishedShown = true; burst(["🎉", "🏅", "🥳", "🏁", "💪"], 40); }
 }
@@ -461,8 +457,9 @@ function startFirebase() {
     else if (!r.ok) toast(`⚠️ Base de données : erreur ${r.status}`);
   }).catch(() => toast("⚠️ Impossible de joindre la base de données (réseau ?)"));
   document.addEventListener("visibilitychange", () => { if (!document.hidden && (!es || es.readyState === 2)) connect(); });
-  sendCheer = async (n) => {
-    await fetch(`${DB}/live/${encodeURIComponent(KEY)}/cheers.json`, { method: "POST", body: JSON.stringify({ n, t: Date.now() }) });
+  sendCheer = async (c) => {
+    const r = await fetch(`${DB}/live/${encodeURIComponent(KEY)}/cheers.json`, { method: "POST", body: JSON.stringify(c) });
+    if (!r.ok) throw new Error(r.status);
   };
 }
 
@@ -487,8 +484,9 @@ function startDemo() {
   applyState({ points: pts, cheers: cheersObj });
   // Rattrape l'horloge même si l'onglet a été mis en veille par le navigateur
   setInterval(() => { let n0 = n; while (simD < TOTAL && simT < now() - 30e3) { step(30e3); emit(); } if (n !== n0) applyState({ points: pts, cheers: cheersObj }); }, 1500);
-  setInterval(() => { cheersObj["c" + Date.now()] = { n: names[Math.floor(Math.random() * names.length)], t: Date.now() }; applyState({ points: pts, cheers: cheersObj }); }, 17000);
-  sendCheer = async (name) => { cheersObj["c" + Date.now()] = { n: name, t: Date.now() }; applyState({ points: pts, cheers: cheersObj }); };
+  const msgs = ["", "Allez !!", "Tu gères 🔥", "Lâche rien !", ""];
+  setInterval(() => { cheersObj["c" + Date.now()] = { n: names[Math.floor(Math.random() * names.length)], m: msgs[Math.floor(Math.random() * msgs.length)], t: now(), d: estD() }; applyState({ points: pts, cheers: cheersObj }); }, 17000);
+  sendCheer = async (c) => { cheersObj["c" + Date.now()] = { ...c, t: now() }; applyState({ points: pts, cheers: cheersObj }); };
 }
 
 function showError(html) {
@@ -525,9 +523,19 @@ async function main() {
     if (matchMedia("(max-width: 759px)").matches) $("#sheet").classList.add("collapsed");
     setTimeout(() => showPassagePopup(L.latLng(p.lat, p.lon)), 300);
   };
+  try { $("#cheerName").value = localStorage.getItem("cheerName") || ""; } catch {}
+  $("#cheerName").onkeydown = (e) => { if (e.key === "Enter") $("#cheerMsg").focus(); };
+  $("#cheerMsg").onkeydown = (e) => { if (e.key === "Enter") { e.target.blur(); $("#btnCheer").click(); } };
   $("#btnCheer").onclick = async () => {
-    const n = await askName(); burst(["💪", "🔥", "⚡", "❤️"], 18);
-    try { await sendCheer(n); } catch { toast("Envoi impossible (réseau ?)"); }
+    const btn = $("#btnCheer"); if (btn.disabled) return;
+    const n = $("#cheerName").value.trim().slice(0, 20), m = $("#cheerMsg").value.trim().slice(0, 80);
+    if (!n) { $("#cheerName").focus(); toast("Indique ton prénom 🙂"); return; }
+    try { localStorage.setItem("cheerName", n); } catch {}
+    btn.disabled = true; setTimeout(() => btn.disabled = false, 3000);
+    try {
+      await sendCheer({ n, m, t: Date.now(), d: Math.round(estD()) });
+      $("#cheerMsg").value = ""; burst(["💪", "🔥", "⚡", "❤️"], 18);
+    } catch { toast("⚠️ Envoi impossible (réseau ?)"); }
   };
   if (matchMedia("(max-width: 759px)").matches) $("#sheet").classList.add("collapsed");
   setFollow(true);
