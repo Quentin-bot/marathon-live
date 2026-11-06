@@ -90,7 +90,7 @@
   const C = window.CONFIG || {}, $ = (s) => document.querySelector(s);
   const DB = (C.firebaseUrl || "").replace(/\/+$/, "");
   if (!DB) $("#cfgWarn").hidden = false;
-  const rand = () => [...crypto.getRandomValues(new Uint8Array(12))].map((b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
+  const rand = () => [...crypto.getRandomValues(new Uint8Array(20))].map((b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
   let key = ""; try { key = localStorage.getItem("runnerKey") || ""; } catch {}
   if (key.length < 16) key = rand();
   const base = location.href.replace(/runner\.html.*$/, "");
