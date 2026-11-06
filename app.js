@@ -76,6 +76,8 @@ async function loadRoute() {
   waypoints.push({ type: "poi", name: "Semi-marathon", d: Math.min(21097.5 * TOTAL / 42195, TOTAL), ico: "🥈" });
   waypoints.push({ type: "finish", name: "Arrivée", d: TOTAL });
   waypoints.sort((a, b) => a.d - b.d);
+  // Même point nommé à moins de 1 km d'écart (demi-tour) : on n'en garde qu'un
+  waypoints = waypoints.filter((w, i) => !waypoints.slice(0, i).some((o) => o.name === w.name && w.d - o.d < 1000));
 }
 
 // Tous les passages du parcours à moins de r mètres d'un point (gère les allers-retours)
@@ -200,9 +202,9 @@ const dark = matchMedia("(prefers-color-scheme: dark)").matches;
 
 function initMap() {
   map = L.map("map", { zoomControl: false, attributionControl: true });
-  L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/${dark ? "dark_all" : "voyager"}/{z}/{x}/{y}{r}.png`, {
-    maxZoom: 19, subdomains: "abcd",
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com/">CARTO</a>',
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   }).addTo(map);
   const ll = route.map((p) => [p.lat, p.lon]);
   const todoColor = getComputedStyle(document.documentElement).getPropertyValue("--route-todo").trim();
@@ -465,7 +467,8 @@ function startDemo() {
   const cheersObj = {};
   const names = ["Marie", "Papa", "Léa", "Tom"];
   applyState({ points: pts, cheers: cheersObj });
-  setInterval(() => { if (simD < TOTAL) { step(30e3); emit(); applyState({ points: pts, cheers: cheersObj }); } }, 1500);
+  // Rattrape l'horloge même si l'onglet a été mis en veille par le navigateur
+  setInterval(() => { let n0 = n; while (simD < TOTAL && simT < now() - 30e3) { step(30e3); emit(); } if (n !== n0) applyState({ points: pts, cheers: cheersObj }); }, 1500);
   setInterval(() => { cheersObj["c" + Date.now()] = { n: names[Math.floor(Math.random() * names.length)], t: Date.now() }; applyState({ points: pts, cheers: cheersObj }); }, 17000);
   sendCheer = async (name) => { cheersObj["c" + Date.now()] = { n: name, t: Date.now() }; applyState({ points: pts, cheers: cheersObj }); };
 }

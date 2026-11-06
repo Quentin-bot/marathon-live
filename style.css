@@ -21,6 +21,7 @@
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
   font: 15px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; overflow: hidden; }
 #map { position: fixed; inset: 0; background: var(--card); }
+@media (prefers-color-scheme: dark) { .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9); } }
 button { font: inherit; color: inherit; cursor: pointer; }
 
 /* Top bar */
