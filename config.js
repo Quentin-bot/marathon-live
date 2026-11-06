@@ -10,9 +10,11 @@ window.CONFIG = {
   // ex : "https://marathon-live-12345-default-rtdb.europe-west1.firebasedatabase.app"
   firebaseUrl: "",
 
-  // Allure objectif (min:s par km) : sert au lièvre virtuel et aux estimations
-  // tant qu'il n'y a pas encore assez de points GPS.
-  targetPace: "5:30",
+  // Objectif par défaut (modifiable ensuite en direct depuis runner.html).
+  // Remplis targetTime (temps final visé) OU targetPace (allure en min:s par km).
+  // Si les deux sont remplis, targetTime l'emporte.
+  targetTime: "3:50:00",
+  targetPace: "",
 
   // Optionnel : heure du départ ("2027-04-10T21:00:00+02:00").
   // Permet d'afficher des horaires de passage avant même que tu partes.

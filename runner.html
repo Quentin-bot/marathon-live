@@ -25,6 +25,9 @@
     .status { font-variant-numeric: tabular-nums; margin-top: 10px; font-size: 14px; color: var(--fg); }
     .warn { background: #fff4d6; color: #6b4e00; border-radius: 12px; padding: 10px 12px; font-size: 14px; }
     @media (prefers-color-scheme: dark) { .warn { background: #3a2f10; color: #ffd98a; } }
+    .seg { display: flex; background: var(--bg); border-radius: 10px; padding: 3px; margin-bottom: 8px; }
+    .seg button { flex: 1; background: transparent; color: var(--muted); }
+    .seg button.on { background: var(--accent); color: #fff; }
     ol { padding-left: 20px; } code { font-size: 13px; }
   </style>
 </head>
@@ -44,6 +47,14 @@
     <h2>2. Lien à envoyer à tes proches</h2>
     <div class="row"><input id="shareUrl" readonly><button data-copy="shareUrl">Copier</button></div>
     <p><a id="openShare" href="#" target="_blank">Ouvrir la page de suivi ↗</a></p>
+  </div>
+
+  <div class="card">
+    <h2>🎯 Ton objectif</h2>
+    <p>Visible en direct par tes proches (lièvre virtuel, avance/retard). Modifiable à tout moment, même pendant la course.</p>
+    <div class="seg"><button id="mTime" class="on">Temps final</button><button id="mPace">Allure</button></div>
+    <div class="row"><input id="tVal" inputmode="numeric" placeholder="3:45:00"><button id="tSave">Enregistrer</button></div>
+    <div class="status" id="tPreview"></div>
   </div>
 
   <div class="card">
@@ -73,6 +84,7 @@
   </div>
 </main>
 <script src="config.js"></script>
+<script src="target.js"></script>
 <script>
 (() => {
   const C = window.CONFIG || {}, $ = (s) => document.querySelector(s);
@@ -92,12 +104,49 @@
   }
   refresh();
   $("#key").onchange = () => { const v = $("#key").value.trim().replace(/[^a-zA-Z0-9_-]/g, ""); if (v.length >= 16) key = v; else alert("16 caractères minimum (lettres, chiffres)."); refresh(); };
-  $("#regen").onclick = () => { if (confirm("Générer une nouvelle clé ? L'ancien lien de suivi ne marchera plus.")) { key = rand(); refresh(); } };
+  $("#regen").onclick = () => { if (confirm("Générer une nouvelle clé ? L'ancien lien de suivi ne marchera plus.")) { key = rand(); refresh(); loadTarget(); } };
   document.querySelectorAll("[data-copy]").forEach((b) => b.onclick = async () => {
     const v = $("#" + b.dataset.copy).value;
     try { await navigator.clipboard.writeText(v); b.textContent = "Copié ✓"; } catch { $("#" + b.dataset.copy).select(); document.execCommand("copy"); b.textContent = "Copié ✓"; }
     setTimeout(() => b.textContent = "Copier", 1500);
   });
+
+  // Objectif
+  let tMode = "time";
+  const setMode = (m) => {
+    tMode = m; $("#mTime").classList.toggle("on", m === "time"); $("#mPace").classList.toggle("on", m === "pace");
+    $("#tVal").placeholder = m === "time" ? "ex. 3:45:00 ou 3h45" : "ex. 5:20 (min:s par km)"; preview();
+  };
+  const preview = () => {
+    const v = $("#tVal").value.trim();
+    if (!v) { $("#tPreview").textContent = ""; return; }
+    const t = Target.parse(tMode, v);
+    $("#tPreview").textContent = t ? `= ${Target.label(t)}` : (tMode === "time" ? "Format attendu : 3:45:00 ou 3h45 (entre 2h et 8h)" : "Format attendu : 5:20 (entre 2'30 et 12'00 par km)");
+  };
+  const showTarget = (t) => {
+    tMode = t.mode; setMode(t.mode);
+    $("#tVal").value = t.mode === "time" ? Target.fmtTime(t.s).replace("h", ":").replace("'", ":") : `${Math.floor(t.s / 60)}:${String(t.s % 60).padStart(2, "0")}`;
+    preview();
+  };
+  $("#mTime").onclick = () => setMode("time");
+  $("#mPace").onclick = () => setMode("pace");
+  $("#tVal").oninput = preview;
+  $("#tSave").onclick = async () => {
+    const t = Target.parse(tMode, $("#tVal").value);
+    if (!t) return preview();
+    if (!DB) return alert("Configure firebaseUrl d'abord.");
+    try {
+      const r = await fetch(`${DB}/live/${key}/meta/target.json`, { method: "PUT", body: JSON.stringify(t) });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      $("#tPreview").textContent = `✅ Objectif enregistré : ${Target.label(t)}`;
+    } catch (e) { $("#tPreview").textContent = "⚠️ Échec : " + e.message; }
+  };
+  const loadTarget = async () => {
+    let t = null;
+    if (DB) try { t = await (await fetch(`${DB}/live/${key}/meta/target.json`)).json(); } catch {}
+    showTarget(Target.valid(t) ? t : Target.fromConfig(C));
+  };
+  loadTarget();
 
   const post = (pos) => fetch(`${DB}/live/${key}/points.json`, { method: "POST", body: JSON.stringify({
     _type: "location", src: "web", lat: pos.coords.latitude, lon: pos.coords.longitude,
@@ -129,8 +178,8 @@
       (err) => status("⚠️ GPS : " + err.message), { enableHighAccuracy: true, timeout: 30000 });
   };
   $("#wipe").onclick = async () => {
-    if (!DB || !confirm("Effacer toutes les positions et encouragements enregistrés ?")) return;
-    const r = await fetch(`${DB}/live/${key}.json`, { method: "DELETE" });
+    if (!DB || !confirm("Effacer toutes les positions et encouragements enregistrés ? (l'objectif est conservé)")) return;
+    const r = await fetch(`${DB}/live/${key}.json`, { method: "PATCH", body: JSON.stringify({ points: null, cheers: null }) });
     alert(r.ok ? "C'est propre. Bonne course ! 🏃" : "Échec : " + r.status);
   };
 })();

@@ -9,8 +9,17 @@ let warp = 1, realStart = Date.now(), virtStart = Date.now();
 const now = () => virtStart + (Date.now() - realStart) * warp;
 
 // ─── Formatage ────────────────────────────────────────────────────────────
-const parsePace = (s) => { const m = /^(\d+):(\d{1,2})$/.exec(String(s || "").trim()); return m ? (+m[1] * 60 + +m[2]) : 330; };
-const TARGET = parsePace(C.targetPace); // ms par mètre (numériquement égal aux s/km)
+// Objectif : config.js par défaut, remplacé en direct par celui réglé dans l'espace coureur
+let target = Target.fromConfig(C);
+let TARGET = 330; // allure objectif en ms par mètre (numériquement égal aux s/km), calculée après chargement du parcours
+function setTarget(t) {
+  if (!Target.valid(t)) return false;
+  const changed = !target || t.mode !== target.mode || t.s !== target.s;
+  target = { mode: t.mode, s: +t.s };
+  TARGET = Target.paceOf(target, TOTAL || 42195);
+  $("#objective").textContent = `🎯 Objectif : ${Target.label(target)}`;
+  return changed;
+}
 const fmtKm = (m) => (m / 1000).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const fmtClock = (t) => new Date(t).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 const fmtDur = (ms) => {
@@ -307,7 +316,6 @@ function render() {
   // Stats
   $("#sElapsed").textContent = M && M.t0 && t > M.t0 ? fmtDur((M.finished ? M.finishT : t) - M.t0) : "—";
   $("#sPace").textContent = hasData ? (M.stopped ? "arrêt" : fmtPace(M.recent || M.avg)) : "—";
-  $("#sTarget").textContent = `(${C.targetPace || "5:30"})`;
   if (M && M.finished) {
     $("#sFinish").textContent = fmtClock(M.finishT); $("#sFinishChrono").textContent = `Chrono ${fmtDur(M.finishT - M.t0)}`;
   } else {
@@ -394,13 +402,16 @@ function toPoint(v) {
 }
 
 function applyState(state) {
+  const tChanged = setTarget(state.meta && state.meta.target);
+  if (tChanged && targetReady) toast(`🎯 Nouvel objectif : ${Target.label(target)}`);
+  targetReady = true;
   rawPoints = Object.values(state.points || {}).map(toPoint).filter(Boolean);
   computeModel(); renderSplits();
   const cs = Object.entries(state.cheers || {}).map(([id, c]) => ({ id, n: c && c.n, t: c && c.t })).sort((a, b) => a.t - b.t);
   onCheers(cs);
   if (M.finished && !finishedShown) { finishedShown = true; burst(["🎉", "🏅", "🥳", "🏁", "💪"], 40); }
 }
-let finishedShown = false;
+let finishedShown = false, targetReady = false;
 
 function startFirebase() {
   let state = {};
@@ -462,6 +473,7 @@ async function main() {
   $("#title").textContent = `🏃 ${NAME} en direct`;
   try { await loadRoute(); } catch (e) { showError(`<h2>Parcours introuvable</h2><p>Impossible de lire « ${esc(C.gpx || "trace.gpx")} ».</p>`); return; }
   initMap();
+  setTarget(target);
   computeModel();
 
   $("#btnFollow").onclick = () => { setFollow(!follow); render(); };

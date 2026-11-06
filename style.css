@@ -64,6 +64,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .ghost { font-size: 15px; opacity: .75; transform: translate(-50%, 70%); display: none; }
 .progress-txt { text-align: center; font-size: 14px; color: var(--muted); margin-top: 16px; }
 .progress-txt b { font-size: 22px; color: var(--fg); font-variant-numeric: tabular-nums; }
+.objective { text-align: center; font-size: 13px; color: var(--muted); margin-top: 2px; }
 .pct { font-weight: 700; color: var(--accent); margin-left: 4px; }
 
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
