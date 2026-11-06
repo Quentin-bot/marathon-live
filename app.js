@@ -110,7 +110,6 @@ const slice = (d0, d1) => {
 // ─── Modèle : positions GPS → progression sur le parcours ─────────────────
 let rawPoints = [];      // [{t, lat, lon, acc}]
 let M = null;            // modèle calculé
-let cheers = [];         // [{id, n, m, t, d}] : prénom, message, heure, km où était le coureur
 
 function computeModel() {
   const pts = rawPoints.slice().sort((a, b) => a.t - b.t);
@@ -345,7 +344,7 @@ function render() {
   const sd = $("#sDelta");
   if (hasData && M.t0 && M.L.d > 300) {
     const delta = (M.L.t - M.t0) - M.L.d * TARGET; // > 0 : en retard
-    sd.textContent = ` · ${delta > 0 ? "+" : "−"}${fmtDur(Math.abs(delta))} ${delta > 0 ? "de retard" : "d'avance"}`;
+    sd.textContent = ` · ${fmtDur(Math.abs(delta))} ${delta > 0 ? "de retard" : "d'avance"}`;
     sd.className = delta > 0 ? "behind" : "ahead";
   } else { sd.textContent = ""; sd.className = ""; }
 
@@ -376,22 +375,6 @@ function renderSplits() {
 }
 
 // ─── Encouragements ───────────────────────────────────────────────────────
-let cheersReady = false;
-function onCheers(list) {
-  const seen = new Set(cheers.map((c) => c.id));
-  const fresh = list.filter((c) => !seen.has(c.id));
-  cheers = list;
-  $("#cheerCount").textContent = cheers.length ? `(${cheers.length})` : "";
-  if (cheersReady) for (const c of fresh.slice(-3)) toast(`💪 ${c.n || "Quelqu'un"}${c.m ? ` : ${c.m}` : " envoie de la force !"}`);
-  cheersReady = true;
-  renderCheers();
-}
-function renderCheers() {
-  const el = $("#cheerList");
-  if (!cheers.length) { el.innerHTML = `<li class="muted">Aucun encouragement pour l'instant. Soyez le premier !</li>`; return; }
-  el.innerHTML = cheers.slice().reverse().map((c) =>
-    `<li><b>${esc(c.n || "Un supporter")}</b> <small>${c.t ? fmtClock(c.t) : ""}${isFinite(c.d) && c.d > 0 ? ` · km ${fmtKm(c.d)}` : ""}</small>${c.m ? `<div>« ${esc(c.m)} »</div>` : ""}</li>`).join("");
-}
 function toast(msg) {
   const d = document.createElement("div"); d.className = "toast"; d.textContent = msg;
   $("#toasts").appendChild(d); setTimeout(() => d.remove(), 4200);
@@ -407,7 +390,6 @@ function burst(emojis, n = 24) {
 // ─── Sources de données ───────────────────────────────────────────────────
 const KEY = decodeURIComponent(location.hash.slice(1)).trim();
 const DB = (C.firebaseUrl || "").replace(/\/+$/, "");
-let sendCheer = async () => {};
 
 function toPoint(v) {
   if (!v || typeof v !== "object") return null;
@@ -425,9 +407,6 @@ function applyState(state) {
   targetReady = true;
   rawPoints = Object.values(state.points || {}).map(toPoint).filter(Boolean);
   computeModel(); renderSplits();
-  const cs = Object.entries(state.cheers || {}).filter(([, c]) => c && typeof c === "object")
-    .map(([id, c]) => ({ id, n: String(c.n || "").slice(0, 20), m: String(c.m || "").slice(0, 80), t: +c.t, d: +c.d })).sort((a, b) => a.t - b.t);
-  onCheers(cs);
   if (M.finished && !finishedShown) { finishedShown = true; burst(["🎉", "🏅", "🥳", "🏁", "💪"], 40); }
 }
 let finishedShown = false, targetReady = false;
@@ -457,10 +436,6 @@ function startFirebase() {
     else if (!r.ok) toast(`⚠️ Base de données : erreur ${r.status}`);
   }).catch(() => toast("⚠️ Impossible de joindre la base de données (réseau ?)"));
   document.addEventListener("visibilitychange", () => { if (!document.hidden && (!es || es.readyState === 2)) connect(); });
-  sendCheer = async (c) => {
-    const r = await fetch(`${DB}/live/${encodeURIComponent(KEY)}/cheers.json`, { method: "POST", body: JSON.stringify(c) });
-    if (!r.ok) throw new Error(r.status);
-  };
 }
 
 function startDemo() {
@@ -479,14 +454,9 @@ function startDemo() {
     simT += dt;
   };
   while (simT < now() - 30e3) { step(30e3); emit(); }
-  const cheersObj = {};
-  const names = ["Marie", "Papa", "Léa", "Tom"];
-  applyState({ points: pts, cheers: cheersObj });
+  applyState({ points: pts });
   // Rattrape l'horloge même si l'onglet a été mis en veille par le navigateur
-  setInterval(() => { let n0 = n; while (simD < TOTAL && simT < now() - 30e3) { step(30e3); emit(); } if (n !== n0) applyState({ points: pts, cheers: cheersObj }); }, 1500);
-  const msgs = ["", "Allez !!", "Tu gères 🔥", "Lâche rien !", ""];
-  setInterval(() => { cheersObj["c" + Date.now()] = { n: names[Math.floor(Math.random() * names.length)], m: msgs[Math.floor(Math.random() * msgs.length)], t: now(), d: estD() }; applyState({ points: pts, cheers: cheersObj }); }, 17000);
-  sendCheer = async (c) => { cheersObj["c" + Date.now()] = { ...c, t: now() }; applyState({ points: pts, cheers: cheersObj }); };
+  setInterval(() => { let n0 = n; while (simD < TOTAL && simT < now() - 30e3) { step(30e3); emit(); } if (n !== n0) applyState({ points: pts }); }, 1500);
 }
 
 function showError(html) {
@@ -522,20 +492,6 @@ async function main() {
     const p = pointAt(+li.dataset.d); setFollow(false); map.setView([p.lat, p.lon], 16);
     if (matchMedia("(max-width: 759px)").matches) $("#sheet").classList.add("collapsed");
     setTimeout(() => showPassagePopup(L.latLng(p.lat, p.lon)), 300);
-  };
-  try { $("#cheerName").value = localStorage.getItem("cheerName") || ""; } catch {}
-  $("#cheerName").onkeydown = (e) => { if (e.key === "Enter") $("#cheerMsg").focus(); };
-  $("#cheerMsg").onkeydown = (e) => { if (e.key === "Enter") { e.target.blur(); $("#btnCheer").click(); } };
-  $("#btnCheer").onclick = async () => {
-    const btn = $("#btnCheer"); if (btn.disabled) return;
-    const n = $("#cheerName").value.trim().slice(0, 20), m = $("#cheerMsg").value.trim().slice(0, 80);
-    if (!n) { $("#cheerName").focus(); toast("Indique ton prénom 🙂"); return; }
-    try { localStorage.setItem("cheerName", n); } catch {}
-    btn.disabled = true; setTimeout(() => btn.disabled = false, 3000);
-    try {
-      await sendCheer({ n, m, t: Date.now(), d: Math.round(estD()) });
-      $("#cheerMsg").value = ""; burst(["💪", "🔥", "⚡", "❤️"], 18);
-    } catch { toast("⚠️ Envoi impossible (réseau ?)"); }
   };
   if (matchMedia("(max-width: 759px)").matches) $("#sheet").classList.add("collapsed");
   setFollow(true);

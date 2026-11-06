@@ -7,7 +7,7 @@ Page de suivi en direct d'un coureur, superposée à la trace GPX du parcours.
 - **Horaires de passage** : prochains points avec heure estimée, et **toucher n'importe quel point du parcours** donne l'heure de passage (y compris quand le parcours passe plusieurs fois au même endroit).
 - **Stats** : temps de course, allure actuelle, arrivée estimée, avance/retard sur l'objectif, temps par km.
 - **Objectif** : temps final visé (ex. 3h45) **ou** allure (ex. 5'20/km), réglable depuis `runner.html`, même pendant la course ; mis à jour en direct chez tous les spectateurs.
-- **Ludique** : lièvre virtuel ⏱️ à l'allure objectif, bouton « 💪 Envoyer de la force » visible par tous, confettis à l'arrivée.
+- **Ludique** : lièvre virtuel ⏱️ à l'allure objectif, confettis à l'arrivée.
 - **Démo** : `…/#demo` simule une course (temps accéléré ×20).
 
 ## Comment ça marche

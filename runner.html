@@ -178,7 +178,7 @@
       (err) => status("⚠️ GPS : " + err.message), { enableHighAccuracy: true, timeout: 30000 });
   };
   $("#wipe").onclick = async () => {
-    if (!DB || !confirm("Effacer toutes les positions et encouragements enregistrés ? (l'objectif est conservé)")) return;
+    if (!DB || !confirm("Effacer toutes les positions enregistrées ? (l'objectif est conservé)")) return;
     const r = await fetch(`${DB}/live/${key}.json`, { method: "PATCH", body: JSON.stringify({ points: null, cheers: null }) });
     alert(r.ok ? "C'est propre. Bonne course ! 🏃" : "Échec : " + r.status);
   };
