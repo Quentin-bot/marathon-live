@@ -296,6 +296,14 @@ function render() {
     if (follow && !M.finished) map.panTo([p.lat, p.lon], { animate: true, duration: .8 });
     for (const k of kmMarkers) k.mk.getElement()?.firstChild?.classList.toggle("done", k.w.d <= d);
   }
+  // Sécurité : dernière position GPS loin du tracé (mauvais GPX, détour…) → on l'affiche telle quelle
+  const offRoute = M && M.lastRaw && !M.finished && (!M.L || M.lastRaw.t - M.L.t > 120e3);
+  if (offRoute) {
+    const lr = M.lastRaw;
+    runnerMk.setLatLng([lr.lat, lr.lon]); runnerMk.setOpacity(1);
+    if (follow) map.panTo([lr.lat, lr.lon], { animate: true, duration: .8 });
+    $("#subtitle").textContent = `Position hors du tracé · il y a ${ago(sinceFix)}`;
+  }
   // Lièvre (allure objectif)
   let ghostD = null;
   if (M && M.t0 && !M.finished && t > M.t0) {
