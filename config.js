@@ -1,7 +1,7 @@
 // ─── Réglages : c'est le seul fichier à modifier ───────────────────────────
 window.CONFIG = {
   runnerName: "Quentin",
-  raceName: "Marathon de Saintes",
+  raceName: "Marathon de Bordeaux",
 
   // Trace du parcours (fichier dans le même dossier)
   gpx: "trace.gpx",
