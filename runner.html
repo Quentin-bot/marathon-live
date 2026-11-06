@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <title>Espace coureur</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+  <style>
+    :root { --accent:#ff5a1f; --ok:#18a957; --bad:#e5484d; --bg:#fff; --fg:#16181d; --muted:#6b7280; --card:#f5f6f8; --line:#e7e8ec; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#15171c; --fg:#f2f3f5; --muted:#9aa1ac; --card:#1e2128; --line:#2a2e36; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 560px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 16px) 16px 40px; }
+    h1 { font-size: 22px; margin: 4px 0 4px; } h2 { font-size: 16px; margin: 0 0 8px; }
+    p, li { color: var(--muted); } b { color: var(--fg); }
+    .card { background: var(--card); border-radius: 16px; padding: 14px; margin: 14px 0; }
+    label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); margin: 10px 0 4px; }
+    .row { display: flex; gap: 8px; }
+    input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: 14px ui-monospace, Menlo, monospace; }
+    button, a.btn { padding: 10px 14px; border-radius: 10px; border: 0; background: var(--fg); color: var(--bg); font: 600 14px inherit; font-family: inherit; cursor: pointer; text-decoration: none; display: inline-block; }
+    .big { width: 100%; padding: 16px; font-size: 17px; background: var(--accent); color: #fff; border-radius: 14px; margin-top: 6px; }
+    .big.stop { background: var(--bad); }
+    .danger { background: transparent; color: var(--bad); border: 1px solid var(--bad); }
+    .status { font-variant-numeric: tabular-nums; margin-top: 10px; font-size: 14px; color: var(--fg); }
+    .warn { background: #fff4d6; color: #6b4e00; border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+    @media (prefers-color-scheme: dark) { .warn { background: #3a2f10; color: #ffd98a; } }
+    ol { padding-left: 20px; } code { font-size: 13px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>📡 Espace coureur</h1>
+  <p>Page réservée au coureur : <b>ne partage pas ce lien</b>, partage seulement le lien de suivi ci-dessous.</p>
+  <div id="cfgWarn" class="warn" hidden>⚠️ <code>firebaseUrl</code> est vide dans <code>config.js</code>. Fais d'abord l'étape 1 du README.</div>
+
+  <div class="card">
+    <h2>1. Ta clé secrète</h2>
+    <p>Générée automatiquement. Elle sert de mot de passe : quiconque la connaît peut te suivre.</p>
+    <div class="row"><input id="key" spellcheck="false" autocapitalize="off"><button id="regen" title="Nouvelle clé">🔄</button></div>
+  </div>
+
+  <div class="card">
+    <h2>2. Lien à envoyer à tes proches</h2>
+    <div class="row"><input id="shareUrl" readonly><button data-copy="shareUrl">Copier</button></div>
+    <p><a id="openShare" href="#" target="_blank">Ouvrir la page de suivi ↗</a></p>
+  </div>
+
+  <div class="card">
+    <h2>3. URL à coller dans OwnTracks <small>(recommandé)</small></h2>
+    <div class="row"><input id="otUrl" readonly><button data-copy="otUrl">Copier</button></div>
+    <ol>
+      <li>Installe <b>OwnTracks</b> (App Store, gratuit).</li>
+      <li>Réglages ⚙️ → <b>Mode : HTTP</b> → <b>URL</b> : colle l'adresse ci-dessus.</li>
+      <li>Autorise la localisation <b>« Toujours »</b> (Réglages iPhone → OwnTracks → Position).</li>
+      <li>Le jour J, sur la carte d'OwnTracks, passe le mode de suivi sur <b>« Move »</b> (envoi fréquent).</li>
+    </ol>
+    <p>OwnTracks continue d'envoyer ta position écran verrouillé, téléphone dans le brassard.</p>
+  </div>
+
+  <div class="card">
+    <h2>Plan B : envoyer depuis cette page</h2>
+    <p>Fonctionne <b>uniquement écran allumé et Safari au premier plan</b> (iOS coupe le GPS des pages web en veille). Utile pour tester, ou en secours.</p>
+    <button class="big" id="go">▶️ Démarrer l'envoi</button>
+    <div class="status" id="status">Arrêté.</div>
+    <p><button id="once">📍 Envoyer ma position une fois (test)</button></p>
+  </div>
+
+  <div class="card">
+    <h2>Avant le départ</h2>
+    <p>Efface les positions de tes tests et de l'échauffement pour repartir d'une trace propre.</p>
+    <button class="danger" id="wipe">🗑️ Effacer toutes les positions</button>
+  </div>
+</main>
+<script src="config.js"></script>
+<script>
+(() => {
+  const C = window.CONFIG || {}, $ = (s) => document.querySelector(s);
+  const DB = (C.firebaseUrl || "").replace(/\/+$/, "");
+  if (!DB) $("#cfgWarn").hidden = false;
+  const rand = () => [...crypto.getRandomValues(new Uint8Array(12))].map((b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
+  let key = ""; try { key = localStorage.getItem("runnerKey") || ""; } catch {}
+  if (key.length < 16) key = rand();
+  const base = location.href.replace(/runner\.html.*$/, "");
+
+  function refresh() {
+    try { localStorage.setItem("runnerKey", key); } catch {}
+    $("#key").value = key;
+    $("#shareUrl").value = `${base}#${key}`;
+    $("#openShare").href = `${base}#${key}`;
+    $("#otUrl").value = DB ? `${DB}/live/${key}/points.json` : "(renseigne firebaseUrl dans config.js)";
+  }
+  refresh();
+  $("#key").onchange = () => { const v = $("#key").value.trim().replace(/[^a-zA-Z0-9_-]/g, ""); if (v.length >= 16) key = v; else alert("16 caractères minimum (lettres, chiffres)."); refresh(); };
+  $("#regen").onclick = () => { if (confirm("Générer une nouvelle clé ? L'ancien lien de suivi ne marchera plus.")) { key = rand(); refresh(); } };
+  document.querySelectorAll("[data-copy]").forEach((b) => b.onclick = async () => {
+    const v = $("#" + b.dataset.copy).value;
+    try { await navigator.clipboard.writeText(v); b.textContent = "Copié ✓"; } catch { $("#" + b.dataset.copy).select(); document.execCommand("copy"); b.textContent = "Copié ✓"; }
+    setTimeout(() => b.textContent = "Copier", 1500);
+  });
+
+  const post = (pos) => fetch(`${DB}/live/${key}/points.json`, { method: "POST", body: JSON.stringify({
+    _type: "location", src: "web", lat: pos.coords.latitude, lon: pos.coords.longitude,
+    tst: Math.round(pos.timestamp / 1000), acc: Math.round(pos.coords.accuracy || 0),
+  }) }).then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); });
+
+  let watch = null, wake = null, lastSent = 0, sent = 0;
+  const status = (t) => $("#status").textContent = t;
+  $("#go").onclick = async () => {
+    if (!DB) return alert("Configure firebaseUrl d'abord.");
+    if (watch !== null) {
+      navigator.geolocation.clearWatch(watch); watch = null; wake && wake.release(); wake = null;
+      $("#go").textContent = "▶️ Démarrer l'envoi"; $("#go").classList.remove("stop"); status(`Arrêté. ${sent} positions envoyées.`); return;
+    }
+    try { wake = await navigator.wakeLock?.request("screen"); } catch {}
+    $("#go").textContent = "⏹️ Arrêter l'envoi"; $("#go").classList.add("stop"); status("Recherche GPS…");
+    watch = navigator.geolocation.watchPosition(async (pos) => {
+      if (Date.now() - lastSent < 10000) return;
+      lastSent = Date.now();
+      try { await post(pos); sent++; status(`✅ ${sent} envoyées · dernière à ${new Date().toLocaleTimeString("fr-FR")} · précision ${Math.round(pos.coords.accuracy)} m`); }
+      catch (e) { status(`⚠️ Échec d'envoi (${e.message}) — on réessaie au prochain point.`); lastSent = 0; }
+    }, (err) => status("⚠️ GPS : " + err.message), { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
+  };
+  $("#once").onclick = () => {
+    if (!DB) return alert("Configure firebaseUrl d'abord.");
+    status("Recherche GPS…");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => post(pos).then(() => status(`✅ Position envoyée (précision ${Math.round(pos.coords.accuracy)} m). Ouvre le lien de suivi pour vérifier.`)).catch((e) => status("⚠️ " + e.message)),
+      (err) => status("⚠️ GPS : " + err.message), { enableHighAccuracy: true, timeout: 30000 });
+  };
+  $("#wipe").onclick = async () => {
+    if (!DB || !confirm("Effacer toutes les positions et encouragements enregistrés ?")) return;
+    const r = await fetch(`${DB}/live/${key}.json`, { method: "DELETE" });
+    alert(r.ok ? "C'est propre. Bonne course ! 🏃" : "Échec : " + r.status);
+  };
+})();
+</script>
+</body>
+</html>

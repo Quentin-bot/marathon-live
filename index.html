@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ff5a1f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Suivi en direct</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏃</text></svg>">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="map"></div>
+
+  <header class="topbar">
+    <div class="who">
+      <div class="title" id="title">🏃 Suivi en direct</div>
+      <div class="sub" id="subtitle">Chargement…</div>
+    </div>
+    <div class="pill wait" id="status">…</div>
+  </header>
+
+  <div class="fabs">
+    <button class="fab" id="btnFollow" title="Suivre le coureur">🎯</button>
+    <button class="fab" id="btnAll" title="Voir tout le parcours">🗺️</button>
+  </div>
+
+  <section class="sheet" id="sheet">
+    <button class="handle" id="handle" aria-label="Agrandir / réduire"><span></span></button>
+
+    <div class="progress">
+      <div class="bar"><div class="fill" id="fill"></div><div class="runner" id="barRunner">🏃</div><div class="ghost" id="barGhost" title="Lièvre objectif">⏱️</div></div>
+      <div class="progress-txt"><b id="kmDone">0,0</b> / <span id="kmTotal">42,2</span> km <span class="pct" id="pct"></span></div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><label>Temps de course</label><b id="sElapsed">—</b></div>
+      <div class="stat"><label>Allure actuelle</label><b id="sPace">—</b></div>
+      <div class="stat"><label>Arrivée estimée</label><b id="sFinish">—</b><small id="sFinishChrono"></small></div>
+      <div class="stat"><label>vs objectif <span id="sTarget"></span></label><b id="sDelta">—</b></div>
+    </div>
+
+    <div class="more">
+      <h3>📍 Prochains passages</h3>
+      <ul class="next" id="nextList"></ul>
+      <p class="hint">👆 Touchez n'importe quel endroit du parcours pour savoir à quelle heure il y passera.</p>
+
+      <button class="cheer" id="btnCheer">💪 Envoyer de la force <span id="cheerCount"></span></button>
+
+      <h3>⏱️ Ses kilomètres</h3>
+      <div class="splits" id="splits"><span class="muted">Pas encore de kilomètre bouclé.</span></div>
+    </div>
+  </section>
+
+  <div class="toasts" id="toasts"></div>
+  <div class="overlay hidden" id="overlay"></div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

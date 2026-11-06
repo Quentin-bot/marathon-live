@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "live": {
+      "$key": {
+        ".read": "$key.length >= 16",
+        ".write": "$key.length >= 16"
+      }
+    }
+  }
+}
