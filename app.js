@@ -421,12 +421,14 @@ function startFirebase() {
   };
   let pending = null;
   const schedule = () => { clearTimeout(pending); pending = setTimeout(() => applyState(state), 150); };
-  let es;
+  let es, lastEvent = Date.now();
   const connect = () => {
     if (es) es.close();
     es = new EventSource(`${DB}/live/${encodeURIComponent(KEY)}.json`);
-    es.addEventListener("put", (e) => { const m = JSON.parse(e.data); setAt(m.path, m.data); schedule(); });
-    es.addEventListener("patch", (e) => { const m = JSON.parse(e.data); for (const [k, v] of Object.entries(m.data || {})) setAt(`${m.path}/${k}`, v); schedule(); });
+    lastEvent = Date.now();
+    es.addEventListener("keep-alive", () => { lastEvent = Date.now(); });
+    es.addEventListener("put", (e) => { lastEvent = Date.now(); const m = JSON.parse(e.data); setAt(m.path, m.data); schedule(); });
+    es.addEventListener("patch", (e) => { lastEvent = Date.now(); const m = JSON.parse(e.data); for (const [k, v] of Object.entries(m.data || {})) setAt(`${m.path}/${k}`, v); schedule(); });
     es.addEventListener("cancel", () => showError("Accès refusé par la base de données. Vérifie les règles Firebase (README)."));
   };
   connect();
@@ -435,7 +437,11 @@ function startFirebase() {
     if (r.status === 401 || r.status === 403) showError(`<h2>Accès refusé</h2><p>La base Firebase refuse la lecture. Vérifie que les règles de <code>database.rules.json</code> sont bien publiées (Firebase → Realtime Database → Règles → Publier).</p>`);
     else if (!r.ok) toast(`⚠️ Base de données : erreur ${r.status}`);
   }).catch(() => toast("⚠️ Impossible de joindre la base de données (réseau ?)"));
-  document.addEventListener("visibilitychange", () => { if (!document.hidden && (!es || es.readyState === 2)) connect(); });
+  // iPhone : un onglet mis en veille peut garder une connexion « morte » sans erreur.
+  // On se reconnecte à chaque retour sur la page, et si plus rien n'arrive depuis 90 s.
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) connect(); });
+  addEventListener("pageshow", (e) => { if (e.persisted) connect(); });
+  setInterval(() => { if (!document.hidden && Date.now() - lastEvent > 90e3) connect(); }, 15e3);
 }
 
 function startDemo() {
